@@ -1,0 +1,5 @@
+{
+  "name": "FoodPhoto AI Enhancer",
+  "description": "Bulk process and enhance food photos for Zomato and Swiggy listings using Gemini AI.",
+  "requestFramePermissions": []
+}
