@@ -17,6 +17,11 @@ interface ProcessedImage {
 
 const PROMPT_TEMPLATES = [
   {
+    id: 'smart_auto',
+    label: 'Smart Auto-Detect (Zomato Master Prompt)',
+    prompt: "Authentic, high-quality restaurant food photography of [Food Name], 1:1 square composition, centered. PRESERVE THE SUBJECT: Maintain the exact portion, plating, and core pixels of the reference food to ensure platform authenticity. SENSORY ENHANCEMENT: Intensify the [Psychology] for appetite stimulation. Apply natural specular highlights to create a [Vibe] finish. LIGHTING: [Lighting]. BACKGROUND: Replace with a realistic [Background] with natural depth-of-field. MUST NOT look like an AI-generated stock photo. No scattered raw ingredients as props. Zomato/Swiggy compliant authentic aesthetic."
+  },
+  {
     id: 'gravies',
     label: 'Category C: Gravies and Soups',
     prompt: "Cinematic food photography of in a deep ceramic bowl. Focus on the umami visual cues: enhance the specular highlights on the glossy sauce to show its rich viscosity and velveted texture. Use a 45-degree side light to define the shape of the meat chunks and vegetables within the gravy. Background: Elegant dark marble surface with soft reflections. Remove any kitchen clutter or distracting props. Ensure the dish covers 75% of the frame as per Zomato guidelines. Vibrant colors, warm tones, inviting and savory."
@@ -37,6 +42,57 @@ const PROMPT_TEMPLATES = [
 export default function App() {
   return <MainDashboard />;
 }
+
+const getSmartVariables = (fileName: string) => {
+  const lowerName = fileName.toLowerCase();
+  
+  // Default (Fallback)
+  let vars = {
+    psychology: "appetizing, fresh, and delicious textures",
+    vibe: "premium",
+    lighting: "Use natural window light or realistic indoor restaurant lighting to define shape and depth",
+    background: "clean restaurant table"
+  };
+
+  if (/(fried|crispy|crunch|pakora|samosa|spring roll|fries|chicken|tikka|kachori|papad|chips|burger|pizza|kurkure)/.test(lowerName)) {
+    vars = {
+      psychology: "fracturable, crisp, golden-brown",
+      vibe: "rustic",
+      lighting: "Use natural side-lighting (harder light) to show edges and define shape and depth",
+      background: "Rustic Wooden Restaurant Table or Dark Stone Surface"
+    };
+  } else if (/(curry|gravy|masala|paneer|dal|makhani|butter|sauce|korma|chole|rajma|chilli|manchurian)/.test(lowerName)) {
+    vars = {
+      psychology: "glossy, high-viscosity, umami-rich",
+      vibe: "elegant",
+      lighting: "Use soft, diffused natural lighting to avoid harsh glare, defining shape and depth",
+      background: "Simple Marble or Elegant Ceramic Dining Table"
+    };
+  } else if (/(soup|drink|juice|shake|smoothie|tea|coffee|lassi|water|cola|mocktail|cocktail|mojito|beverage)/.test(lowerName)) {
+    vars = {
+      psychology: "translucent, glowing, fresh condensation",
+      vibe: "refreshing",
+      lighting: "Use natural backlighting for a subtle glow to define shape and depth",
+      background: "Minimalist Cafe Table or Clean Slate"
+    };
+  } else if (/(bread|naan|roti|paratha|kulcha|bao|dim sum|momo|dumpling|bun|sandwich|wrap|roll)/.test(lowerName)) {
+    vars = {
+      psychology: "steamy, soft-matte, velveted",
+      vibe: "comforting",
+      lighting: "Use soft diffused natural side-light to define shape and depth",
+      background: "Bamboo Mat or Neutral Linen on a Dining Table"
+    };
+  } else if (/(cake|ice cream|dessert|sweet|pastry|brownie|chocolate|gulab jamun|rasgulla|barfi|halwa|cookie|waffle|pancake)/.test(lowerName)) {
+    vars = {
+      psychology: "decadent, melting, creamy-smooth",
+      vibe: "inviting",
+      lighting: "Use warm, inviting natural 'Golden Hour' lighting to define shape and depth",
+      background: "Pastel Surface or Fine China on a Cafe Table"
+    };
+  }
+
+  return vars;
+};
 
 function MainDashboard() {
   const [customPrompt, setCustomPrompt] = useState(PROMPT_TEMPLATES[0].prompt);
@@ -125,13 +181,16 @@ function MainDashboard() {
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          // Calculate 1:1 crop (center crop)
-          const size = Math.min(img.width, img.height);
-          const startX = (img.width - size) / 2;
-          const startY = (img.height - size) / 2;
+          // Calculate 1:1 padded (fit within 1:1)
+          const maxDim = Math.max(img.width, img.height);
+          const targetSize = Math.min(maxDim, 512); // Target size max 512x512
+          const scale = targetSize / maxDim;
 
-          // Target size max 512x512 to speed up processing and prevent timeouts
-          const targetSize = Math.min(size, 512);
+          const scaledWidth = img.width * scale;
+          const scaledHeight = img.height * scale;
+
+          const startX = (targetSize - scaledWidth) / 2;
+          const startY = (targetSize - scaledHeight) / 2;
 
           const canvas = document.createElement('canvas');
           canvas.width = targetSize;
@@ -142,8 +201,12 @@ function MainDashboard() {
             return;
           }
           
-          // Draw cropped and resized image
-          ctx.drawImage(img, startX, startY, size, size, 0, 0, targetSize, targetSize);
+          // Fill with white background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, targetSize, targetSize);
+          
+          // Draw padded and resized image
+          ctx.drawImage(img, 0, 0, img.width, img.height, startX, startY, scaledWidth, scaledHeight);
           
           const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
           resolve({
@@ -178,29 +241,42 @@ function MainDashboard() {
       const { base64: base64Data, mimeType } = await prepareImageForAI(imageToProcess.file);
       
       const fileName = imageToProcess.file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
+      
+      // Detect generic file names (e.g., "image", "IMG_1234", "WhatsApp Image")
+      const isGenericName = /^(image|photo|img|picture|untitled|whatsapp|screenshot|capture|default|file|dsc)/i.test(fileName) || !/[a-zA-Z]/.test(fileName);
+      const smartFoodName = isGenericName ? "the dish" : fileName;
 
       setImages((prev) => prev.map((img) => (img.id === id ? { ...img, progress: 30 } : img)));
 
       // Build Guidelines Prompt
       const systemGuidelines = `
-        Goal: High-quality, appetizing food photography for food delivery apps.
+        Goal: Authentic, high-quality restaurant food photography for food delivery apps.
         Focus: Dish must be the hero, centered, covering ~70-75% of the frame. Leave breathing room around the dish.
-        Background: ${backgroundPrompt || 'Clean and decluttered'}.
-        Lighting: Natural daylight or professional soft lighting. High contrast, vibrant colors.
-        Strictly Prohibited: Watermarks, text overlays, prices, people/hands, collages, raw food, logos of any kind (e.g., Zomato, Swiggy, matchboxes, branding). Do NOT add any text, logos, or brand names to the image.
+        Background: ${backgroundPrompt || 'Realistic restaurant table surface'}.
+        Lighting: Natural window light or realistic indoor restaurant lighting. Avoid overly artificial studio lighting.
+        Strictly Prohibited: DO NOT make it look like a stock photo. DO NOT add raw ingredients, scattered props, or artificial garnishes around the plate. No watermarks, text overlays, prices, people/hands, collages, logos of any kind (e.g., Zomato, Swiggy, matchboxes, branding). Do NOT add any text, logos, or brand names to the image.
       `;
+
+      // Parse Smart Variables if using the Master Prompt
+      const smartVars = getSmartVariables(smartFoodName);
+      const parsedCustomPrompt = customPrompt
+        .replace(/\[Food Name\]/gi, smartFoodName)
+        .replace(/\[Psychology\]/gi, smartVars.psychology)
+        .replace(/\[Vibe\]/gi, smartVars.vibe)
+        .replace(/\[Lighting\]/gi, smartVars.lighting)
+        .replace(/\[Background\]/gi, smartVars.background);
 
       const fullPrompt = `
         You are an expert food photographer and photo editor.
         
-        CRITICAL INSTRUCTION: The food in this image is "${fileName}". 
+        CRITICAL INSTRUCTION: The food in this image is "${smartFoodName}". 
         You MUST preserve the exact food, ingredients, shape, and plating of the original image. DO NOT hallucinate or change the food itself. Your ONLY job is to enhance the lighting, textures, and replace the background.
         
         Enhance and edit the provided food image according to the following strict guidelines:
         ${systemGuidelines}
 
         User's specific instructions:
-        ${customPrompt || "Enhance the lighting, make the food look appetizing."}
+        ${parsedCustomPrompt || "Enhance the lighting, make the food look appetizing."}
       `;
 
       let response;
@@ -406,7 +482,7 @@ function MainDashboard() {
                   const template = PROMPT_TEMPLATES.find(t => t.id === e.target.value);
                   if (template) setCustomPrompt(template.prompt);
                 }}
-                defaultValue="gravies"
+                defaultValue="smart_auto"
               >
                 <option value="" disabled>Load Template...</option>
                 {PROMPT_TEMPLATES.map(t => (
@@ -550,14 +626,14 @@ function MainDashboard() {
                     
                     {/* Processed */}
                     <div className="p-4 flex flex-col">
-                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">AI Enhanced (1:1)</span>
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">AI Processed (1:1)</span>
                       <div className="flex-1 bg-zinc-50 rounded-xl overflow-hidden relative flex items-center justify-center min-h-[200px] border border-zinc-100">
                         {img.status === 'success' && img.processedUrl ? (
                           <>
                             <img src={img.processedUrl} alt="Processed" className="absolute inset-0 w-full h-full object-contain" />
                             <a
                               href={img.processedUrl}
-                              download={`enhanced-${img.file.name}`}
+                              download={img.file.name}
                               className="absolute bottom-3 right-3 p-2 bg-white/90 backdrop-blur-sm text-zinc-900 rounded-lg shadow-sm hover:bg-white transition-colors z-10"
                             >
                               <Download className="w-4 h-4" />
