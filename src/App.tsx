@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import { Upload, Image as ImageIcon, CheckCircle, XCircle, Loader2, Download, Trash2, Camera, Sparkles, Building2 } from 'lucide-react';
+import { Upload, Image as ImageIcon, CheckCircle, XCircle, Loader2, Download, Trash2, Camera, Sparkles, Building2, Crop } from 'lucide-react';
 
 // --- Types ---
 type ProcessingStatus = 'idle' | 'processing' | 'success' | 'error';
@@ -19,22 +19,22 @@ const PROMPT_TEMPLATES = [
   {
     id: 'smart_auto',
     label: 'Smart Auto-Detect (Zomato Master Prompt)',
-    prompt: "Authentic, high-quality restaurant food photography of [Food Name], 1:1 square composition, centered. PRESERVE THE SUBJECT: Maintain the exact portion, plating, and core pixels of the reference food to ensure platform authenticity. SENSORY ENHANCEMENT: Intensify the [Psychology] for appetite stimulation. Apply natural specular highlights to create a [Vibe] finish. LIGHTING: [Lighting]. BACKGROUND: Replace with a realistic [Background] with natural depth-of-field. MUST NOT look like an AI-generated stock photo. No scattered raw ingredients as props. Zomato/Swiggy compliant authentic aesthetic."
+    prompt: "Authentic, high-quality restaurant food photography of [Food Name], 3:2 landscape composition, centered, [Angle]. PRESERVE THE SUBJECT: Maintain the exact portion, plating, and core pixels of the reference food to ensure platform authenticity. SENSORY ENHANCEMENT: Intensify the [Psychology] for appetite stimulation. Apply natural specular highlights to create a [Vibe] finish. LIGHTING: [Lighting]. BACKGROUND: Replace with a realistic [Background] with natural depth-of-field. MUST NOT look like an AI-generated stock photo. No scattered raw ingredients as props. Zomato/Swiggy compliant authentic aesthetic."
   },
   {
     id: 'gravies',
     label: 'Category C: Gravies and Soups',
-    prompt: "Cinematic food photography of in a deep ceramic bowl. Focus on the umami visual cues: enhance the specular highlights on the glossy sauce to show its rich viscosity and velveted texture. Use a 45-degree side light to define the shape of the meat chunks and vegetables within the gravy. Background: Elegant dark marble surface with soft reflections. Remove any kitchen clutter or distracting props. Ensure the dish covers 75% of the frame as per Zomato guidelines. Vibrant colors, warm tones, inviting and savory."
+    prompt: "Cinematic food photography of in a deep ceramic bowl, 3:2 landscape composition, clicked in a 45-degree angle. Focus on the umami visual cues: enhance the specular highlights on the glossy sauce to show its rich viscosity and velveted texture. Use a 45-degree side light to define the shape of the meat chunks and vegetables within the gravy. Background: Elegant dark marble surface with soft reflections. Remove any kitchen clutter or distracting props. Ensure the dish covers 75% of the frame as per Zomato guidelines. Vibrant colors, warm tones, inviting and savory."
   },
   {
     id: 'noodles',
     label: 'Category A: Stir-Fried Noodles and Rice',
-    prompt: "Professional food photography of Stir-fried, 45-degree hero angle. Maintain the exact plating and portion size of the reference photo. Enhance the Wok Hei signals: add subtle wisps of semi-transparent steam and emphasize the charred, caramelized edges of the noodles. Apply side-lighting to highlight the individual graininess of the rice and the vibrant, crisp texture of the bell peppers. Background: Replace with a dark, rustic wooden table with a soft bokeh effect. Add a single pair of high-quality wooden chopsticks resting on the right side, leading the eye toward the center. 4K resolution, commercial food magazine style, appetizing and realistic."
+    prompt: "Professional food photography of Stir-fried, 3:2 landscape composition, clicked in a 45-degree angle. Maintain the exact plating and portion size of the reference photo. Enhance the Wok Hei signals: add subtle wisps of semi-transparent steam and emphasize the charred, caramelized edges of the noodles. Apply side-lighting to highlight the individual graininess of the rice and the vibrant, crisp texture of the bell peppers. Background: Replace with a dark, rustic wooden table with a soft bokeh effect. Add a single pair of high-quality wooden chopsticks resting on the right side, leading the eye toward the center. 4K resolution, commercial food magazine style, appetizing and realistic."
   },
   {
     id: 'dimsum',
     label: 'Category B: Dim Sum and Bao',
-    prompt: "Studio product shot of in a traditional bamboo steamer, top-down view. Ensure the wrappers appear silken and semi-translucent, subtly revealing the filling within. Use soft backlighting to create a rim light effect on the pleats of the dough. Enhance the 'wispy' steam rising from the basket to signal peak temperature. Background: Minimalist neutral gray stone surface. Add a small, white ceramic dish of chili oil in the upper left corner to provide a color-pop. Zero distortions, realistic textures, Zomato-compliant authenticity."
+    prompt: "Studio product shot of in a traditional bamboo steamer, 3:2 landscape composition, clicked in a 45-degree angle. Ensure the wrappers appear silken and semi-translucent, subtly revealing the filling within. Use soft backlighting to create a rim light effect on the pleats of the dough. Enhance the 'wispy' steam rising from the basket to signal peak temperature. Background: Minimalist neutral gray stone surface. Add a small, white ceramic dish of chili oil in the upper left corner to provide a color-pop. Zero distortions, realistic textures, Zomato-compliant authenticity."
   }
 ];
 
@@ -45,50 +45,28 @@ export default function App() {
 
 const getSmartVariables = (fileName: string) => {
   const lowerName = fileName.toLowerCase();
+  const isStackable = /(burger|sandwich|cake|drink|beverage|shake|smoothie|coffee|tea|mocktail|cocktail|mojito|cola|juice|waffle|pancake)/.test(lowerName);
+  const angle = isStackable ? "side shot with 45 degrees" : "clicked in a 45-degree angle";
   
   // Default (Fallback)
   let vars = {
     psychology: "appetizing, fresh, and delicious textures",
     vibe: "premium",
     lighting: "Use natural window light or realistic indoor restaurant lighting to define shape and depth",
-    background: "clean restaurant table"
+    background: "clean restaurant table",
+    angle
   };
 
   if (/(fried|crispy|crunch|pakora|samosa|spring roll|fries|chicken|tikka|kachori|papad|chips|burger|pizza|kurkure)/.test(lowerName)) {
-    vars = {
-      psychology: "fracturable, crisp, golden-brown",
-      vibe: "rustic",
-      lighting: "Use natural side-lighting (harder light) to show edges and define shape and depth",
-      background: "Rustic Wooden Restaurant Table or Dark Stone Surface"
-    };
+    vars = { ...vars, psychology: "fracturable, crisp, golden-brown", vibe: "rustic", lighting: "Use natural side-lighting (harder light) to show edges and define shape and depth", background: "Rustic Wooden Restaurant Table or Dark Stone Surface" };
   } else if (/(curry|gravy|masala|paneer|dal|makhani|butter|sauce|korma|chole|rajma|chilli|manchurian)/.test(lowerName)) {
-    vars = {
-      psychology: "glossy, high-viscosity, umami-rich",
-      vibe: "elegant",
-      lighting: "Use soft, diffused natural lighting to avoid harsh glare, defining shape and depth",
-      background: "Simple Marble or Elegant Ceramic Dining Table"
-    };
+    vars = { ...vars, psychology: "glossy, high-viscosity, umami-rich", vibe: "elegant", lighting: "Use soft, diffused natural lighting to avoid harsh glare, defining shape and depth", background: "Simple Marble or Elegant Ceramic Dining Table" };
   } else if (/(soup|drink|juice|shake|smoothie|tea|coffee|lassi|water|cola|mocktail|cocktail|mojito|beverage)/.test(lowerName)) {
-    vars = {
-      psychology: "translucent, glowing, fresh condensation",
-      vibe: "refreshing",
-      lighting: "Use natural backlighting for a subtle glow to define shape and depth",
-      background: "Minimalist Cafe Table or Clean Slate"
-    };
+    vars = { ...vars, psychology: "translucent, glowing, fresh condensation", vibe: "refreshing", lighting: "Use natural backlighting for a subtle glow to define shape and depth", background: "Minimalist Cafe Table or Clean Slate" };
   } else if (/(bread|naan|roti|paratha|kulcha|bao|dim sum|momo|dumpling|bun|sandwich|wrap|roll)/.test(lowerName)) {
-    vars = {
-      psychology: "steamy, soft-matte, velveted",
-      vibe: "comforting",
-      lighting: "Use soft diffused natural side-light to define shape and depth",
-      background: "Bamboo Mat or Neutral Linen on a Dining Table"
-    };
+    vars = { ...vars, psychology: "steamy, soft-matte, velveted", vibe: "comforting", lighting: "Use soft diffused natural side-light to define shape and depth", background: "Bamboo Mat or Neutral Linen on a Dining Table" };
   } else if (/(cake|ice cream|dessert|sweet|pastry|brownie|chocolate|gulab jamun|rasgulla|barfi|halwa|cookie|waffle|pancake)/.test(lowerName)) {
-    vars = {
-      psychology: "decadent, melting, creamy-smooth",
-      vibe: "inviting",
-      lighting: "Use warm, inviting natural 'Golden Hour' lighting to define shape and depth",
-      background: "Pastel Surface or Fine China on a Cafe Table"
-    };
+    vars = { ...vars, psychology: "decadent, melting, creamy-smooth", vibe: "inviting", lighting: "Use warm, inviting natural 'Golden Hour' lighting to define shape and depth", background: "Pastel Surface or Fine China on a Cafe Table" };
   }
 
   return vars;
@@ -101,6 +79,8 @@ function MainDashboard() {
   const [restaurantLogo, setRestaurantLogo] = useState<string | null>(null);
   const [isProcessingAll, setIsProcessingAll] = useState(false);
   const [globalProgress, setGlobalProgress] = useState(0);
+  const [targetWidth, setTargetWidth] = useState(1200);
+  const [targetHeight, setTargetHeight] = useState(800);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -137,76 +117,157 @@ function MainDashboard() {
     setImages((prev) => prev.filter((img) => img.id !== id));
   };
 
-  const compositeLogo = async (base64Image: string, logoUrl: string): Promise<string> => {
+  const formatFinalImage = async (base64Image: string, logoUrl: string | null, width: number, height: number): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = width;
+        canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           resolve(base64Image);
           return;
         }
-        ctx.drawImage(img, 0, 0);
 
-        const logo = new Image();
-        logo.crossOrigin = "anonymous";
-        logo.onload = () => {
-          // Calculate logo size (e.g., 15% of image width)
-          const logoWidth = canvas.width * 0.15;
-          const logoHeight = (logo.height / logo.width) * logoWidth;
-          const padding = canvas.width * 0.03;
-          
-          // Bottom right corner
-          const x = canvas.width - logoWidth - padding;
-          const y = canvas.height - logoHeight - padding;
-          
-          ctx.drawImage(logo, x, y, logoWidth, logoHeight);
-          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        // Calculate crop to cover target dimensions (no white space, no blurred bars)
+        const imgRatio = img.width / img.height;
+        const targetRatio = width / height;
+        
+        let sourceX = 0;
+        let sourceY = 0;
+        let sourceWidth = img.width;
+        let sourceHeight = img.height;
+
+        if (imgRatio > targetRatio) {
+          // Image is wider than target, crop sides
+          sourceWidth = img.height * targetRatio;
+          sourceX = (img.width - sourceWidth) / 2;
+        } else {
+          // Image is taller than target, crop top/bottom
+          sourceHeight = img.width / targetRatio;
+          sourceY = (img.height - sourceHeight) / 2;
+        }
+
+        // Draw the cropped image to completely fill the canvas
+        ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height);
+
+        const applyLogoAndResolve = () => {
+          if (!logoUrl) {
+            resolve(canvas.toDataURL('image/jpeg', 0.85)); // 0.85 to stay under 5MB
+            return;
+          }
+          const logo = new Image();
+          logo.crossOrigin = "anonymous";
+          logo.onload = () => {
+            const cardWidth = canvas.width * 0.18; 
+            const logoRenderWidth = cardWidth * 0.8; 
+            const logoRenderHeight = (logo.height / logo.width) * logoRenderWidth;
+            const cardHeight = logoRenderHeight + (cardWidth * 0.25); // Add padding to card
+            
+            // Position top right, slightly inset so it looks like it's on the table behind the food
+            const x = canvas.width * 0.80; 
+            const y = canvas.height * 0.20;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Give it a realistic physical card rotation/tilt (e.g. 6 degrees)
+            ctx.rotate((-6 * Math.PI) / 180);
+            
+            // Apply drop shadow to simulate a physical card on the table
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+            ctx.shadowBlur = 15;
+            ctx.shadowOffsetX = -4;
+            ctx.shadowOffsetY = 8;
+            
+            // Draw the white card substrate
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 6);
+            } else {
+              ctx.rect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight);
+            }
+            ctx.fill();
+            
+            // Reset shadow so the logo graphic itself doesn't cast an internal shadow
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            
+            // Draw the logo centered within the card
+            ctx.drawImage(logo, -logoRenderWidth / 2, -logoRenderHeight / 2, logoRenderWidth, logoRenderHeight);
+            
+            ctx.restore();
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          };
+          logo.onerror = () => resolve(canvas.toDataURL('image/jpeg', 0.85));
+          logo.src = logoUrl;
         };
-        logo.onerror = () => resolve(base64Image); // Fallback if logo fails
-        logo.src = logoUrl;
+
+        applyLogoAndResolve();
       };
-      img.onerror = () => reject(new Error("Failed to load generated image for compositing"));
+      img.onerror = () => reject(new Error("Failed to load generated image for formatting"));
       img.src = base64Image;
     });
   };
 
-  const prepareImageForAI = (file: File): Promise<{ base64: string, mimeType: string }> => {
+  const prepareImageForAI = (file: File, finalWidth: number, finalHeight: number): Promise<{ base64: string, mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          // Calculate 1:1 padded (fit within 1:1)
-          const maxDim = Math.max(img.width, img.height);
-          const targetSize = Math.min(maxDim, 512); // Target size max 512x512
-          const scale = targetSize / maxDim;
+          // Determine closest supported aspect ratio for the AI
+          const targetRatio = finalWidth / finalHeight;
+          let aiRatio = 1; // 1:1
+          if (targetRatio > 1.1) {
+            aiRatio = targetRatio > 1.5 ? 16/9 : 4/3;
+          } else if (targetRatio < 0.9) {
+            aiRatio = targetRatio < 0.66 ? 9/16 : 3/4;
+          }
 
-          const scaledWidth = img.width * scale;
-          const scaledHeight = img.height * scale;
-
-          const startX = (targetSize - scaledWidth) / 2;
-          const startY = (targetSize - scaledHeight) / 2;
+          // Calculate padded (fit within target ratio)
+          const maxDim = 512;
+          let targetWidth = maxDim;
+          let targetHeight = maxDim;
+          
+          if (aiRatio > 1) {
+            targetHeight = Math.round(maxDim / aiRatio);
+          } else {
+            targetWidth = Math.round(maxDim * aiRatio);
+          }
 
           const canvas = document.createElement('canvas');
-          canvas.width = targetSize;
-          canvas.height = targetSize;
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
           const ctx = canvas.getContext('2d');
           if (!ctx) {
             reject(new Error("Failed to get canvas context"));
             return;
           }
           
-          // Fill with white background
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, targetSize, targetSize);
+          // Calculate crop to cover target dimensions (no white padding)
+          const imgRatio = img.width / img.height;
           
-          // Draw padded and resized image
-          ctx.drawImage(img, 0, 0, img.width, img.height, startX, startY, scaledWidth, scaledHeight);
+          let sourceX = 0;
+          let sourceY = 0;
+          let sourceWidth = img.width;
+          let sourceHeight = img.height;
+
+          if (imgRatio > aiRatio) {
+            // Image is wider than target, crop sides
+            sourceWidth = img.height * aiRatio;
+            sourceX = (img.width - sourceWidth) / 2;
+          } else {
+            // Image is taller than target, crop top/bottom
+            sourceHeight = img.width / aiRatio;
+            sourceY = (img.height - sourceHeight) / 2;
+          }
+
+          // Draw the cropped image to completely fill the canvas
+          ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, targetWidth, targetHeight);
           
           const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
           resolve({
@@ -237,8 +298,8 @@ function MainDashboard() {
 
       setImages((prev) => prev.map((img) => (img.id === id ? { ...img, progress: 20 } : img)));
 
-      // Convert to base64, crop to 1:1, and resize
-      const { base64: base64Data, mimeType } = await prepareImageForAI(imageToProcess.file);
+      // Convert to base64, pad to target ratio, and resize
+      const { base64: base64Data, mimeType } = await prepareImageForAI(imageToProcess.file, targetWidth, targetHeight);
       
       const fileName = imageToProcess.file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
       
@@ -264,7 +325,9 @@ function MainDashboard() {
         .replace(/\[Psychology\]/gi, smartVars.psychology)
         .replace(/\[Vibe\]/gi, smartVars.vibe)
         .replace(/\[Lighting\]/gi, smartVars.lighting)
-        .replace(/\[Background\]/gi, smartVars.background);
+        .replace(/\[Background\]/gi, smartVars.background)
+        .replace(/\[Angle\]/gi, smartVars.angle)
+        .replace(/3:2 landscape composition/gi, "optimal composition");
 
       const fullPrompt = `
         You are an expert food photographer and photo editor.
@@ -287,6 +350,15 @@ function MainDashboard() {
         try {
           setImages((prev) => prev.map((img) => (img.id === id ? { ...img, progress: 30 + (attempt * 10) } : img)));
           
+          // Determine closest supported aspect ratio for the AI
+          const targetRatio = targetWidth / targetHeight;
+          let aiAspectRatio = "1:1";
+          if (targetRatio > 1.1) {
+            aiAspectRatio = targetRatio > 1.5 ? "16:9" : "4:3";
+          } else if (targetRatio < 0.9) {
+            aiAspectRatio = targetRatio < 0.66 ? "9:16" : "3:4";
+          }
+
           const responsePromise = ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
@@ -301,15 +373,24 @@ function MainDashboard() {
                   text: fullPrompt,
                 },
               ],
+            },
+            config: {
+              imageConfig: {
+                aspectRatio: aiAspectRatio,
+              }
             }
           });
 
-          // 120 second timeout per attempt
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("AI processing timed out.")), 120000)
-          );
+          let timeoutId: any;
+          const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error("AI processing timed out. Please try a smaller image or wait.")), 180000);
+          });
 
-          response = await Promise.race([responsePromise, timeoutPromise]) as any;
+          try {
+            response = await Promise.race([responsePromise, timeoutPromise]) as any;
+          } finally {
+            clearTimeout(timeoutId);
+          }
           
           if (response.candidates?.[0]?.finishReason === 'SAFETY') {
             throw new Error("Image generation was blocked due to safety guidelines.");
@@ -353,11 +434,10 @@ function MainDashboard() {
         throw new Error("No image generated by the AI. Please try a different prompt or image.");
       }
 
-      // Add logo if available
-      if (restaurantLogo) {
-        setImages((prev) => prev.map((img) => (img.id === id ? { ...img, progress: 90 } : img)));
-        processedUrl = await compositeLogo(processedUrl, restaurantLogo);
-      }
+      setImages((prev) => prev.map((img) => (img.id === id ? { ...img, progress: 90 } : img)));
+      
+      // Always format the final image to target dimensions and apply logo if available
+      processedUrl = await formatFinalImage(processedUrl, restaurantLogo || null, targetWidth, targetHeight);
 
       setImages((prev) =>
         prev.map((img) =>
@@ -377,6 +457,77 @@ function MainDashboard() {
   const stopProcessing = () => {
     isProcessingAllRef.current = false;
     setIsProcessingAll(false);
+  };
+
+  const downloadAll = async () => {
+    const successfulImages = imagesRef.current.filter(img => img.status === 'success' && img.processedUrl);
+    for (let i = 0; i < successfulImages.length; i++) {
+      const img = successfulImages[i];
+      const a = document.createElement('a');
+      a.href = img.processedUrl!;
+      a.download = `processed_${img.file.name}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  };
+
+  const resizeSingleImage = async (id: string) => {
+    const imageToProcess = imagesRef.current.find((img) => img.id === id);
+    if (!imageToProcess || imageToProcess.status === 'processing') return;
+
+    setImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, status: 'processing', error: null, progress: 50 } : img))
+    );
+
+    try {
+      const processedUrl = await formatFinalImage(imageToProcess.originalUrl, restaurantLogo || null, targetWidth, targetHeight);
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === id ? { ...img, status: 'success', processedUrl, progress: 100 } : img
+        )
+      );
+    } catch (error: any) {
+      console.error(error);
+      setImages((prev) =>
+        prev.map((img) =>
+          img.id === id ? { ...img, status: 'error', error: error.message || "Failed to resize image", progress: 0 } : img
+        )
+      );
+    }
+  };
+
+  const resizeAll = async () => {
+    if (isProcessingAllRef.current) return;
+    setIsProcessingAll(true);
+    isProcessingAllRef.current = true;
+    setGlobalProgress(0);
+
+    // Reset errors to idle so they get picked up by the queue
+    setImages(prev => prev.map(img => img.status === 'error' ? { ...img, status: 'idle', error: null, progress: 0 } : img));
+    
+    // Wait a tick for state to update ref
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    while (isProcessingAllRef.current) {
+      const currentImages = imagesRef.current;
+      const nextImage = currentImages.find(img => img.status === 'idle');
+      
+      if (!nextImage) {
+        break; // Queue empty
+      }
+
+      await resizeSingleImage(nextImage.id);
+      
+      const updatedImages = imagesRef.current;
+      const completed = updatedImages.filter(img => img.status === 'success' || img.status === 'error').length;
+      setGlobalProgress((completed / updatedImages.length) * 100);
+    }
+
+    setIsProcessingAll(false);
+    isProcessingAllRef.current = false;
+    setTimeout(() => setGlobalProgress(0), 2000);
   };
 
   const processAll = async () => {
@@ -427,7 +578,7 @@ function MainDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-semibold tracking-tight">FoodPhoto AI</h1>
-              <p className="text-xs text-zinc-500 font-medium">Listing Enhancer (1:1)</p>
+              <p className="text-xs text-zinc-500 font-medium">Listing Enhancer</p>
             </div>
           </div>
 
@@ -460,6 +611,31 @@ function MainDashboard() {
         </div>
 
         <div className="p-6 flex-1 flex flex-col gap-6">
+          {/* Resize Options */}
+          <div>
+            <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Final Image Size</label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="block text-[10px] text-zinc-400 uppercase mb-1">Width (px)</label>
+                <input
+                  type="number"
+                  value={targetWidth}
+                  onChange={(e) => setTargetWidth(Number(e.target.value) || 1200)}
+                  className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50 text-sm focus:ring-2 focus:ring-zinc-900 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-[10px] text-zinc-400 uppercase mb-1">Height (px)</label>
+                <input
+                  type="number"
+                  value={targetHeight}
+                  onChange={(e) => setTargetHeight(Number(e.target.value) || 800)}
+                  className="w-full p-2 rounded-lg border border-zinc-200 bg-zinc-50 text-sm focus:ring-2 focus:ring-zinc-900 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Background Prompt */}
           <div>
             <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Initial Background</label>
@@ -541,14 +717,32 @@ function MainDashboard() {
                 Stop Processing
               </button>
             ) : (
-              <button
-                onClick={processAll}
-                disabled={images.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Sparkles className="w-4 h-4" />
-                Process All
-              </button>
+              <>
+                <button
+                  onClick={downloadAll}
+                  disabled={!images.some(img => img.status === 'success')}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-4 h-4" />
+                  Download All
+                </button>
+                <button
+                  onClick={resizeAll}
+                  disabled={images.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Crop className="w-4 h-4" />
+                  Resize All
+                </button>
+                <button
+                  onClick={processAll}
+                  disabled={images.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Process All
+                </button>
+              </>
             )}
           </div>
         </header>
@@ -562,7 +756,7 @@ function MainDashboard() {
               </div>
               <h3 className="text-xl font-semibold mb-2">No photos uploaded</h3>
               <p className="text-zinc-500 mb-8">
-                Upload your raw food photos. The AI will enhance them to a 1:1 ratio, apply your background, and add your logo.
+                Upload your raw food photos. The AI will enhance them, apply your background, resize to your target dimensions, and add your logo.
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -597,13 +791,22 @@ function MainDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                       {img.status === 'idle' || img.status === 'error' ? (
-                        <button
-                          onClick={() => processSingleImage(img.id)}
-                          disabled={isProcessingAll}
-                          className="text-xs font-medium text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
-                        >
-                          Process
-                        </button>
+                        <>
+                          <button
+                            onClick={() => resizeSingleImage(img.id)}
+                            disabled={isProcessingAll}
+                            className="text-xs font-medium text-zinc-600 hover:text-zinc-900 px-3 py-1.5 rounded-md hover:bg-zinc-100 transition-colors disabled:opacity-50 border border-zinc-200"
+                          >
+                            Resize Only
+                          </button>
+                          <button
+                            onClick={() => processSingleImage(img.id)}
+                            disabled={isProcessingAll}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
+                          >
+                            Process
+                          </button>
+                        </>
                       ) : null}
                       <button
                         onClick={() => removeImage(img.id)}
@@ -626,7 +829,7 @@ function MainDashboard() {
                     
                     {/* Processed */}
                     <div className="p-4 flex flex-col">
-                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">AI Processed (1:1)</span>
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">AI Processed</span>
                       <div className="flex-1 bg-zinc-50 rounded-xl overflow-hidden relative flex items-center justify-center min-h-[200px] border border-zinc-100">
                         {img.status === 'success' && img.processedUrl ? (
                           <>

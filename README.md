@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 🍽️ FoodPhoto AI - Listing Enhancer
 
-# Run and deploy your AI Studio app
+FoodPhoto AI is an advanced, client-centric, React-based web application that uses Google's state-of-the-art **Gemini 2.5 Flash** vision models to automatically clean up, extract, and beautifully restage amateur restaurant food photos.
 
-This contains everything you need to run your app locally.
+It was designed specifically to help restaurant owners create DoorDash / UberEats / Zomato ready marketing materials without hiring a professional food photographer.
 
-View your app in AI Studio: https://ai.studio/apps/eff5e619-3bdb-4536-9606-a54565ba85b1
+## ✨ Features
+- **AI Background Magic**: Automatically segments the food item from messy/unappealing backgrounds and places it in a professional, studio-lit environment (e.g., "Clean wooden table with soft lighting").
+- **Batch Processing**: Drag and drop multiple photos and let the AI process them in a queue sequentially.
+- **Auto-Branding**: Upload a restaurant logo (PNG) to automatically composite and watermark it perfectly onto the bottom right of the final images.
+- **Aspect Ratio & Resize Control**: Ensure all downloads perfectly match delivery platform guidelines (e.g., 1200x800).
+- **Progressive Web App (PWA)**: Installable as a native app on mobile devices and desktop computers.
+- **Privacy First**: API requests are dispatched directly from the browser to Google's cloud. Images aren't stored on any middleware servers.
 
-## Run Locally
+## 📚 Guides & Documentation
+Check out the guides below to get the most out of the platform:
 
-**Prerequisites:**  Node.js
+- [**Installation Guide (INSTALL.md)**](./INSTALL.md): Instructions on how to deploy via Docker, Node.js, Vercel, or install locally as a PWA.
+- [**User Guide (USER_GUIDE.md)**](./USER_GUIDE.md): Step-by-step instructions on how to use the web application itself, tweak settings, and troubleshoot AI generations.
 
+## 🛠️ Technology Stack
+- **Frontend**: React 18, Vite, TypeScript
+- **Styling**: Tailwind CSS, Lucide React (Icons)
+- **AI Engine**: @google/genai SDK (Gemini 2.5 Flash Image Generation & Content APIs)
+- **State Management**: React Hooks (useState, useRef, useEffect)
+- **Deployment**: Docker-ready, PWA-ready
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 📜 License
+This project is provided as-is for educational and commercial exploration.
